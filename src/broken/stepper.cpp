@@ -4,10 +4,10 @@
 
 // // !! not working (probably bad motor)
 
-// #define n1 8
-// #define n2 10
-// #define n3 9
-// #define n4 11
+// #define n1 10
+// #define n2 12
+// #define n3 11
+// #define n4 13
 
 // const int stepsPerRevolution = 2048;
 // Stepper myStepper(stepsPerRevolution, n1, n2, n3, n4);

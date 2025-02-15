@@ -6,6 +6,6 @@
 // }
 
 // void loop() {
-//     int sensor = analogRead(A0);
+//     int sensor = analogRead(A2);
 //     Serial.println(sensor);
 // }

@@ -3,7 +3,7 @@
 
 // // has a big delay
 
-// #define pirPin 7
+// #define pirPin 11
 
 // void setup() {
 //     Serial.begin(115200);
