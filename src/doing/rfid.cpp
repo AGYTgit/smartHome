@@ -4,7 +4,7 @@
 // #include <Wire.h>
 
 // #define RFID_RST_PIN 9
-// #define RFID_SDA_PIN 53
+// #define RFID_SDA_PIN 10
 
 // MFRC522 rfid(RFID_SDA_PIN, RFID_RST_PIN);
 // // pins miso - 50, mosi - 51, sck - 52, sda - 53

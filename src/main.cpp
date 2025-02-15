@@ -35,6 +35,15 @@ Keypad keypad = Keypad(makeKeymap(keys), rowPins, colPins, ROWS, COLS);
 MFRC522 rfid(RFID_SDA_PIN, RFID_RST_PIN);
 const unsigned long TARGET_UID = 3543600632;
 
+// fingerprint sensor
+#include <Adafruit_Fingerprint.h>
+#include <SoftwareSerial.h>
+// #define FINGERPRINT_RX_PIN 2
+// #define FINGERPRINT_TX_PIN 3
+#define FINGERPRINT_SERIAL Serial1
+// SoftwareSerial Serial1(FINGERPRINT_RX_PIN, FINGERPRINT_TX_PIN);
+Adafruit_Fingerprint finger = Adafruit_Fingerprint(&Serial1);
+
 // remote
 #define REMOTE_PIN_A 6
 #define REMOTE_PIN_B 4
@@ -148,12 +157,27 @@ void setupRemote() {
 
 void setupRFID() {
   SPI.begin();
-  SPI.setClockDivider(SPI_CLOCK_DIV4);
+  // SPI.setClockDivider(SPI_CLOCK_DIV4);
   rfid.PCD_Init();
 }
 
 void setupFingerprint() {
+  finger.begin(57600);
+  delay(5);
 
+  if (!finger.verifyPassword()) {
+    Serial.println("Did not find fingerprint sensor :(");
+    while (1);
+  }
+
+  finger.getTemplateCount();
+  if (finger.templateCount == 0) {
+    Serial.println("No fingerprints enrolled. Please enroll some.");
+  } else {
+    Serial.print("Sensor contains ");
+    Serial.print(finger.templateCount);
+    Serial.println(" fingerprints");
+  }
 }
 
 void setupBuzzer() {
@@ -330,9 +354,12 @@ void handleRemote() {
 }
 
 void handleRFID() {
+  Serial.println('1');
   if (!rfid.PICC_IsNewCardPresent() || !rfid.PICC_ReadCardSerial()) {
     return;
   }
+  
+  Serial.println('2');
 
   Serial.println("RFID detected");
   unsigned long readUID = 0;
@@ -357,8 +384,85 @@ void handleRFID() {
   rfid.PICC_HaltA();
 }
 
-void handleFIngerPrint() {
+void handleFingerprint() {
+  uint8_t p = finger.getImage();
+  if (p == FINGERPRINT_OK) {
+    p = finger.image2Tz();
+    if (p == FINGERPRINT_OK) {
+      p = finger.fingerFastSearch();
+      if (p == FINGERPRINT_OK) {
+        // Serial.print("Confidence: ");
+        // Serial.println(finger.confidence);
+        // Serial.print("Fingerprint matched! ID: ");
+        // Serial.println(finger.fingerID);
+        alarmOff();
+      } else if (p == FINGERPRINT_NOTFOUND) {
+        // Serial.println("Fingerprint found, but no match.");
+      }
+    }
+  } 
+}
 
+void handleMagnet() {
+  bool currMagnetState = checkMagnet();
+
+  if (currMagnetState && !magnetState) {
+    magnetState = true;
+    magnetTimer = millis();
+    lcd.setCursor(12, 0);
+    lcd.print('m');
+  } else if (magnetState && (millis() - magnetTimer) > magnetDelay) {
+    magnetState = false;
+    lcd.setCursor(12, 0);
+    lcd.print(' ');
+  }
+}
+
+void handleSmoke() {
+  bool currSmokeState = checkAverageSmokeSensor();
+
+  if (currSmokeState && !smokeState) {
+    smokeState = true;
+    smokeTimer = millis();
+    lcd.setCursor(13, 0);
+    lcd.print('S');
+    buzzerOn();
+  } else if (smokeState && (millis() - smokeTimer) > smokeDelay) {
+    smokeState = false;
+    lcd.setCursor(13, 0);
+    lcd.print(' ');
+    buzzerOff();
+  }
+}
+
+void handleWater() {
+  bool currWaterState = checkWaterSensor();
+
+  if (currWaterState && !waterState) {
+    waterState = true;
+    waterTimer = millis();
+    lcd.setCursor(14, 0);
+    lcd.print('W');
+  } else if (waterState && (millis() - waterTimer) > waterDelay) {
+    waterState = false;
+    lcd.setCursor(14, 0);
+    lcd.print(' ');
+  }
+}
+
+void handleMotion() {
+  bool currMotionState = checkMotionSensor();
+
+  if (currMotionState && !motionState) {
+    motionState = true;
+    motionTimer = millis();
+    lcd.setCursor(15, 0);
+    lcd.print('M');
+  } else if (motionState && (millis() - motionTimer) > motionDelay) {
+    motionState = false;
+    lcd.setCursor(15, 0);
+    lcd.print(' ');
+  }
 }
 
 
@@ -371,7 +475,7 @@ void setup() {
   setupKeymap();
   setupRemote();
   // setupRFID();
-  // setupFingerprint();
+  setupFingerprint();
 
   // sensors
   setupMagnet();
@@ -390,61 +494,15 @@ void setup() {
 void loop() {
   handleKeymap();
   handleRemote();
-  // handleRFID();
-  // handleFIngerPrint();
+  if (locked) {
+    // handleRFID();
+    handleFingerprint();
+  }
   
-  bool currMagnetState = checkMagnet();
-  if (currMagnetState && !magnetState) {
-    magnetState = true;
-    magnetTimer = millis();
-    lcd.setCursor(12, 0);
-    lcd.print('m');
-  } else if (magnetState && (millis() - magnetTimer) > magnetDelay) {
-    magnetState = false;
-    lcd.setCursor(12, 0);
-    lcd.print(' ');
-  }
-
-  // Smoke sensor
-  bool currSmokeState = checkAverageSmokeSensor();
-  if (currSmokeState && !smokeState) {
-    smokeState = true;
-    smokeTimer = millis();
-    lcd.setCursor(13, 0);
-    lcd.print('S');
-    buzzerOn();
-  } else if (smokeState && (millis() - smokeTimer) > smokeDelay) {
-    smokeState = false;
-    lcd.setCursor(13, 0);
-    lcd.print(' ');
-    buzzerOff();
-  }
-
-  // Water sensor
-  bool currWaterState = checkWaterSensor();
-  if (currWaterState && !waterState) {
-    waterState = true;
-    waterTimer = millis();
-    lcd.setCursor(14, 0);
-    lcd.print('W');
-  } else if (waterState && (millis() - waterTimer) > waterDelay) {
-    waterState = false;
-    lcd.setCursor(14, 0);
-    lcd.print(' ');
-  }
-
-  // Motion sensor
-  bool currMotionState = checkMotionSensor();
-  if (currMotionState && !motionState) {
-    motionState = true;
-    motionTimer = millis();
-    lcd.setCursor(15, 0);
-    lcd.print('M');
-  } else if (motionState && (millis() - motionTimer) > motionDelay) {
-    motionState = false;
-    lcd.setCursor(15, 0);
-    lcd.print(' ');
-  }
+  handleMagnet();
+  handleSmoke();
+  handleWater();
+  handleMotion();
 }
 
 // keypad - alarm on/off sensors
