@@ -3,7 +3,8 @@
 #include <EEPROM.h>
 
 // vars
-bool locked = true;
+bool alarmActive = false;
+bool alarmTriggered = false;
 char password[20] = "";
 String input = "";
 
@@ -38,10 +39,8 @@ const unsigned long TARGET_UID = 3543600632;
 // fingerprint sensor
 #include <Adafruit_Fingerprint.h>
 #include <SoftwareSerial.h>
-// #define FINGERPRINT_RX_PIN 2
-// #define FINGERPRINT_TX_PIN 3
 #define FINGERPRINT_SERIAL Serial1
-// SoftwareSerial Serial1(FINGERPRINT_RX_PIN, FINGERPRINT_TX_PIN);
+// rx - 19, tx - 18 for Serial1
 Adafruit_Fingerprint finger = Adafruit_Fingerprint(&Serial1);
 
 // remote
@@ -90,7 +89,7 @@ Servo servo;
 
 // helper functions
 void alarmOn() {
-  locked = true;
+  alarmActive = true;
   lcd.setCursor(0, 0);
   lcd.print("         ");
   delay(100);
@@ -99,7 +98,7 @@ void alarmOn() {
 }
 
 void alarmOff() {
-  locked = false;
+  alarmActive = false;
   lcd.setCursor(0, 0);
   lcd.print("       ");
   delay(100);
@@ -127,6 +126,60 @@ void servoBackward() {
 
 void servoStop() {
   servo.write(90);
+}
+
+void triggerAlarm() {
+  alarmTriggered = true;
+  buzzerOn();
+  lcd.clear();
+  lcd.print("ALARM  TRIGGERED");
+  lcd.setCursor(0, 1);
+  lcd.print("!!!!!!!!!!!!!!!!");
+}
+
+void keymapToResetAlarm() {
+  char key = keypad.getKey();
+
+  if (key != NO_KEY) {
+    if (key == '#') {
+      EEPROM.get(0, password);
+      input = "";
+      lcd.setCursor(0, 1);
+      lcd.print("                ");
+      lcd.setCursor(0, 1);
+      while (true) {
+        key = keypad.getKey();
+        if (key == '*') {
+          break;
+        }
+        if (key == 'A' || key == 'B' || key == 'C' || key == 'D' || key == '#') {
+          continue;
+        }
+        if (key != NO_KEY) {
+          input += key;
+          lcd.print('*');
+        }
+      }
+      if (input.equals(password)) {
+        lcd.clear();
+        lcd.print("Deactivated!");
+        motionState = false;
+        alarmTriggered = false;
+        buzzerOff();
+        delay(1000);
+        lcd.clear();
+        alarmOff();
+      } else {
+        lcd.clear();
+        lcd.print("Wrong password!");
+        delay(1000);
+        lcd.clear();
+        lcd.print("ALARM  TRIGGERED");
+        lcd.setCursor(0, 1);
+        lcd.print("!!!!!!!!!!!!!!!!");
+      }
+    }
+  }
 }
 
 
@@ -212,7 +265,7 @@ bool checkMagnet() {
 
 bool checkSmokeSensor() {
   int value = analogRead(smokePin);
-  Serial.println(value);
+  // Serial.println(value);
   return value < smokeThreshold;
 }
 
@@ -243,7 +296,7 @@ void handleKeymap() {
   if (key != NO_KEY) {
     if (key == '#') { // unlocking
       EEPROM.get(0, password);
-      if (locked) {
+      if (alarmActive) {
         lcd.clear();
         lcd.print("enter password:");
         lcd.setCursor(0, 1);
@@ -273,7 +326,11 @@ void handleKeymap() {
           lcd.clear();
           lcd.print("Locked!");
         }
-      } else { // locking
+      } else if (!alarmActive) {
+        alarmOn();
+      }
+    } else if (key == 'D') {
+      if (!alarmActive) { // locking
         while (true) {
           lcd.clear();
           lcd.print("Set password:");
@@ -322,10 +379,10 @@ void handleKeymap() {
 }
 
 void handleRemote() {
-  if (digitalRead(REMOTE_PIN_A) != LOW && !locked) {
+  if (digitalRead(REMOTE_PIN_A) != LOW && !alarmActive) {
     alarmOn();
     while (digitalRead(REMOTE_PIN_A) != LOW);
-  } else if (digitalRead(REMOTE_PIN_B) != LOW && locked) {
+  } else if (digitalRead(REMOTE_PIN_B) != LOW && alarmActive) {
     alarmOff();
     while (digitalRead(REMOTE_PIN_B) != LOW);
   }
@@ -426,12 +483,10 @@ void handleSmoke() {
     smokeTimer = millis();
     lcd.setCursor(13, 0);
     lcd.print('S');
-    buzzerOn();
   } else if (smokeState && (millis() - smokeTimer) > smokeDelay) {
     smokeState = false;
     lcd.setCursor(13, 0);
     lcd.print(' ');
-    buzzerOff();
   }
 }
 
@@ -458,6 +513,9 @@ void handleMotion() {
     motionTimer = millis();
     lcd.setCursor(15, 0);
     lcd.print('M');
+    if (alarmActive) {
+      triggerAlarm();
+    }
   } else if (motionState && (millis() - motionTimer) > motionDelay) {
     motionState = false;
     lcd.setCursor(15, 0);
@@ -492,9 +550,14 @@ void setup() {
 }
 
 void loop() {
+  if (alarmTriggered) {
+    keymapToResetAlarm();
+    return;
+  }
+
   handleKeymap();
   handleRemote();
-  if (locked) {
+  if (alarmActive) {
     // handleRFID();
     handleFingerprint();
   }
