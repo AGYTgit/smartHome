@@ -117,15 +117,11 @@ void buzzerOff() {
 }
 
 void servoForward() {
-  servo.write(45);
+  servo.write(90);
 }
 
 void servoBackward() {
-  servo.write(135);
-}
-
-void servoStop() {
-  servo.write(90);
+  servo.write(30);
 }
 
 void triggerAlarm() {
@@ -260,7 +256,7 @@ void setupServo() {
 
 // check functions
 bool checkMagnet() {
-  return digitalRead(magnetPin) != LOW;
+  return digitalRead(magnetPin) == LOW;
 }
 
 bool checkSmokeSensor() {
@@ -385,36 +381,21 @@ void handleRemote() {
   } else if (digitalRead(REMOTE_PIN_B) != LOW && alarmActive) {
     alarmOff();
     while (digitalRead(REMOTE_PIN_B) != LOW);
-  }
-
-  int total[2] = {0,0};
-
-  for (int i = 0; i < 1000; i++) {
-    if (digitalRead(REMOTE_PIN_C) != LOW) {
-      total[0]++;
-    } else if (digitalRead(REMOTE_PIN_D) != LOW) {
-      total[1]++;
-    }
-    delayMicroseconds(200);
-  }
-
-  if (total[0] < 5 && total[1] < 5) {
-    servoStop();
-    return;
-  }
-
-  if (total[0] >= 5) {
+  } else if (digitalRead(REMOTE_PIN_C) != LOW) {
     servoBackward();
-  } else if (total[1] >= 5) {
+  } else if (digitalRead(REMOTE_PIN_D) != LOW) {
     servoForward();
   }
 }
 
 void handleRFID() {
-  Serial.println('1');
-  if (!rfid.PICC_IsNewCardPresent() || !rfid.PICC_ReadCardSerial()) {
+  if (!rfid.PICC_ReadCardSerial()) {
+    return;
+  } else if (!rfid.PICC_IsNewCardPresent()) {
+    Serial.println("No new card");
     return;
   }
+
   
   Serial.println('2');
 
@@ -535,7 +516,7 @@ void setup() {
   // setupRFID();
   setupFingerprint();
 
-  // sensors
+  // // sensors
   setupMagnet();
   setupSmokeSensor();
   setupWaterSensor();
@@ -544,7 +525,7 @@ void setup() {
   setupBuzzer();
   setupServo();
 
-  // setup
+  // // setup
   EEPROM.get(0, password);
   alarmOn();
 }
@@ -567,7 +548,3 @@ void loop() {
   handleWater();
   handleMotion();
 }
-
-// keypad - alarm on/off sensors
-// alarm on pin or rfid or fingerprint
-// alarm triggered - led, buzzer, lcd
