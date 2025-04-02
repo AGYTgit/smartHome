@@ -90,6 +90,7 @@ Servo servo;
 // helper functions
 void alarmOn() {
   alarmActive = true;
+  Serial2.write('1');
   lcd.setCursor(0, 0);
   lcd.print("         ");
   delay(100);
@@ -99,6 +100,7 @@ void alarmOn() {
 
 void alarmOff() {
   alarmActive = false;
+  Serial2.write('0');
   lcd.setCursor(0, 0);
   lcd.print("       ");
   delay(100);
@@ -126,6 +128,7 @@ void servoBackward() {
 
 void triggerAlarm() {
   alarmTriggered = true;
+  Serial2.write("2");
   buzzerOn();
   lcd.clear();
   lcd.print("ALARM  TRIGGERED");
@@ -508,6 +511,7 @@ void handleMotion() {
 void setup() {
   Serial.begin(115200);
   Serial.println("Hello, world!");
+  Serial2.begin(115200);
 
   // UI
   setupLCD();
