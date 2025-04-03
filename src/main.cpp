@@ -48,6 +48,10 @@ Adafruit_Fingerprint finger = Adafruit_Fingerprint(&Serial1);
 #define REMOTE_PIN_B 4
 #define REMOTE_PIN_C 7
 #define REMOTE_PIN_D 5
+bool remoteStateA = false;
+bool remoteStateB = false;
+bool remoteStateC = false;
+bool remoteStateD = false;
 
 // sensors
 // magnet
@@ -59,7 +63,7 @@ const unsigned long magnetDelay = 5000;
 // smoke sensor
 #define smokePin A1
 bool smokeState = false;
-int smokeThreshold = 50;
+int smokeThreshold = 65;
 unsigned long smokeTimer = 0;
 const unsigned long smokeDelay = 5000;
 
@@ -86,10 +90,45 @@ bool buzzerState = false;
 #define servoPin 12
 Servo servo;
 
+// Leds
+#define servoLedPin 3
+#define indicatorLedPin 2
+
 
 // helper functions
+void indicatorLedOn() {
+  digitalWrite(indicatorLedPin, HIGH);
+}
+
+void indicatorLedOff() {
+  digitalWrite(indicatorLedPin, LOW);
+}
+
+void indicatorLedBlik() {
+  digitalWrite(indicatorLedPin, HIGH);
+  delay(125);
+  digitalWrite(indicatorLedPin, LOW);
+  delay(125);
+  digitalWrite(indicatorLedPin, HIGH);
+  delay(125);
+  digitalWrite(indicatorLedPin, LOW);
+  delay(125);
+}
+
+void servoLedBlik() {
+  digitalWrite(servoLedPin, HIGH);
+  delay(125);
+  digitalWrite(servoLedPin, LOW);
+  delay(125);
+  digitalWrite(servoLedPin, HIGH);
+  delay(125);
+  digitalWrite(servoLedPin, LOW);
+  delay(125);
+}
+
 void alarmOn() {
   alarmActive = true;
+  indicatorLedOff();
   Serial2.write('1');
   lcd.setCursor(0, 0);
   lcd.print("         ");
@@ -100,6 +139,7 @@ void alarmOn() {
 
 void alarmOff() {
   alarmActive = false;
+  indicatorLedOff();
   Serial2.write('0');
   lcd.setCursor(0, 0);
   lcd.print("       ");
@@ -120,14 +160,17 @@ void buzzerOff() {
 
 void servoForward() {
   servo.write(90);
+  servoLedBlik();
 }
 
 void servoBackward() {
   servo.write(30);
+  servoLedBlik();
 }
 
 void triggerAlarm() {
   alarmTriggered = true;
+  indicatorLedOn();
   Serial2.write("2");
   buzzerOn();
   lcd.clear();
@@ -293,7 +336,15 @@ void handleKeymap() {
   char key = keypad.getKey();
 
   if (key != NO_KEY) {
-    if (key == '#') { // unlocking
+    if (key == 'A') {
+      if (!alarmActive) {
+        servoForward();
+      }
+    } else if (key == 'B') {
+      if (!alarmActive) {
+        servoBackward();
+      }
+    } else if (key == '#') { // unlocking
       EEPROM.get(0, password);
       if (alarmActive) {
         lcd.clear();
@@ -321,7 +372,7 @@ void handleKeymap() {
         } else {
           lcd.clear();
           lcd.print("Wrong password!");
-          delay(1000);
+          indicatorLedBlik();
           lcd.clear();
           lcd.print("Locked!");
         }
@@ -366,7 +417,7 @@ void handleKeymap() {
           } else {
             lcd.clear();
             lcd.print("Wrong password!");
-            delay(500);
+            indicatorLedBlik();
           }
         }
         password[sizeof(password) - 1] = '\0';
@@ -378,15 +429,17 @@ void handleKeymap() {
 }
 
 void handleRemote() {
-  if (digitalRead(REMOTE_PIN_A) != LOW && !alarmActive) {
+  if (digitalRead(REMOTE_PIN_A) != remoteStateA && !alarmActive) {
+    remoteStateA = !remoteStateA;
     alarmOn();
-    while (digitalRead(REMOTE_PIN_A) != LOW);
-  } else if (digitalRead(REMOTE_PIN_B) != LOW && alarmActive) {
+  } else if (digitalRead(REMOTE_PIN_B) != remoteStateB && alarmActive) {
+    remoteStateB = !remoteStateB;
     alarmOff();
-    while (digitalRead(REMOTE_PIN_B) != LOW);
-  } else if (digitalRead(REMOTE_PIN_C) != LOW) {
+  } else if (digitalRead(REMOTE_PIN_C) != remoteStateC) {
+    remoteStateC = !remoteStateC;
     servoBackward();
-  } else if (digitalRead(REMOTE_PIN_D) != LOW) {
+  } else if (digitalRead(REMOTE_PIN_D) != remoteStateD) {
+    remoteStateD = !remoteStateD;
     servoForward();
   }
 }
@@ -439,6 +492,7 @@ void handleFingerprint() {
         alarmOff();
       } else if (p == FINGERPRINT_NOTFOUND) {
         // Serial.println("Fingerprint found, but no match.");
+        indicatorLedBlik();
       }
     }
   } 
@@ -513,6 +567,10 @@ void setup() {
   Serial.println("Hello, world!");
   Serial2.begin(115200);
 
+  // Leds
+  pinMode(servoLedPin, OUTPUT);
+  pinMode(indicatorLedPin, OUTPUT);
+  
   // UI
   setupLCD();
   setupKeymap();
@@ -520,7 +578,7 @@ void setup() {
   // setupRFID();
   setupFingerprint();
 
-  // // sensors
+  // sensors
   setupMagnet();
   setupSmokeSensor();
   setupWaterSensor();
@@ -529,7 +587,7 @@ void setup() {
   setupBuzzer();
   setupServo();
 
-  // // setup
+  // setup
   EEPROM.get(0, password);
   alarmOn();
 }
